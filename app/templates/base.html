@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# JavaScript reads this token and sends it in the X-CSRFToken header on every POST. #}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}SecureAccess{% endblock %} · SecureAccess</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{{ url_for('main.index') }}">SecureAccess</a>
+    <nav>
+      {% if g.user %}
+        <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
+        {# Hiding this link is cosmetic only - the /admin route itself enforces the role. #}
+        {% if g.user.role == 'Admin' %}<a href="{{ url_for('main.admin_dashboard') }}">Admin</a>{% endif %}
+        <span class="who">{{ g.user.username }} ({{ g.user.role }})</span>
+        <button type="button" id="logout-btn" class="btn btn-small">Log out</button>
+      {% else %}
+        <a href="{{ url_for('auth.login') }}">Log in</a>
+        <a href="{{ url_for('auth.register') }}">Register</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

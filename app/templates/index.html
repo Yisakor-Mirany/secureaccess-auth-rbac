@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<section class="card hero">
+  <h1>Welcome to SecureAccess</h1>
+  <p>A small demo of authentication, authorization and role-based access control.</p>
+  {% if g.user %}
+    <a class="btn" href="{{ url_for('main.dashboard') }}">Go to your dashboard</a>
+  {% else %}
+    <div class="actions">
+      <a class="btn" href="{{ url_for('auth.register') }}">Create an account</a>
+      <a class="btn btn-secondary" href="{{ url_for('auth.login') }}">Log in</a>
+    </div>
+  {% endif %}
+</section>
+<section class="card">
+  <h2>Access levels</h2>
+  <table>
+    <thead><tr><th>Page</th><th>Who can access</th><th>Otherwise</th></tr></thead>
+    <tbody>
+      <tr><td>Home</td><td>Everyone</td><td>-</td></tr>
+      <tr><td>User dashboard</td><td>Logged-in Users and Admins</td><td>401 Unauthorized</td></tr>
+      <tr><td>Admin dashboard</td><td>Admins only</td><td>401 (not logged in) / 403 (logged-in User)</td></tr>
+    </tbody>
+  </table>
+</section>
+{% endblock %}

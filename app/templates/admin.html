@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<section class="card">
+  <h1>Admin dashboard</h1>
+  <p>Registered users ({{ users|length }}). Password hashes are never retrieved from the database for this view.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Created (UTC)</th><th>Last login (UTC)</th></tr></thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.id }}</td>
+          <td>{{ u.username }}</td>
+          <td><span class="badge badge-{{ u.role|lower }}">{{ u.role }}</span></td>
+          <td>{{ u.created_at }}</td>
+          <td>{{ u.last_login_at or "-" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

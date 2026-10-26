@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Register{% endblock %}
+{% block content %}
+<section class="card narrow">
+  <h1>Create an account</h1>
+  <form id="register-form" novalidate>
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" autocomplete="username"
+           required minlength="3" maxlength="30">
+    <small>3-30 characters: letters, numbers, ".", "_" or "-".</small>
+
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="new-password"
+           required minlength="12" maxlength="128">
+    <small>At least 12 characters. A long passphrase is best.</small>
+
+    <label for="confirm">Confirm password</label>
+    <input id="confirm" name="confirm" type="password" autocomplete="new-password" required>
+
+    <p class="message" id="form-message" role="alert" hidden></p>
+    <button type="submit" class="btn">Register</button>
+  </form>
+  <p>Already have an account? <a href="{{ url_for('auth.login') }}">Log in</a></p>
+</section>
+{% endblock %}

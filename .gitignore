@@ -1,0 +1,20 @@
+# Secrets
+.env
+
+# Runtime data (database + server-side session files)
+instance/
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
