@@ -1,89 +1,417 @@
 # SecureAccess: QA Checklist
 
-Fill in the **Result** column as you test. Use ✅ for pass, ❌ for fail, and add
-a note for anything unexpected.
+**Project:** SecureAccess — Authentication and Role-Based Access Control  
+**Testing Date:** October 27, 2026  
+**Testing Tools:** pytest, Google Chrome, Chrome DevTools  
+**Environment:** Local Flask development server  
+**Automated Tests:** 37 passed, 0 failed
 
-**Setup before testing:**
+## Test Result Legend
 
-1. Server is running: `python run.py`
-2. An admin exists: `flask --app run create-admin`
-3. A normal user exists: register one through the website
-4. Browser DevTools are open (F12): **Network** tab with "Preserve log" ticked,
-   **Application → Cookies → http://127.0.0.1:5000**, and **Console**
+- **PASS:** Test completed successfully.
+- **PASS (Automated):** Verified by automated testing.
+- **REPORTED PASS:** Manually tested and reported successful.
+- **PENDING:** Additional manual verification needed.
+- **N/A:** Not applicable to local development.
 
-## A. Automated tests
+---
 
-| # | Test | How | Expected | Result |
-|---|---|---|---|---|
-| A1 | Full suite | `pytest -v` | 36 passed (37 after the F1 fix) | |
+## A. Automated Tests
+
+| ID  | Test                  | Expected Result                                     | Actual Result | Status |
+| --- | --------------------- | --------------------------------------------------- | ------------- | ------ |
+| A1  | Full pytest suite     | All tests pass                                      | 37 passed     | PASS   |
+| A2  | Authentication tests  | Valid and invalid login handled                     | Tests passed  | PASS   |
+| A3  | Authorization tests   | Role permissions enforced                           | Tests passed  | PASS   |
+| A4  | CSRF protection       | Invalid requests rejected                           | Tests passed  | PASS   |
+| A5  | Rate limiting         | Excessive login attempts rejected                   | Tests passed  | PASS   |
+| A6  | Input validation      | Invalid input rejected                              | Tests passed  | PASS   |
+| A7  | F1 session regression | Original session survives 1,100 additional sessions | Test passed   | PASS   |
+
+### Test Command
+
+```bash
+python -m pytest -q
+```
+
+### Test Results
+
+```text
+37 passed, 1408 warnings in 2.39s
+```
+
+**Total Tests:** 37  
+**Passed:** 37  
+**Failed:** 0
+
+The warnings were primarily caused by deprecated datetime functionality in Flask-Session. They did not cause test failures.
+
+---
 
 ## B. Authentication
 
-| # | Test | Steps | Expected | Result |
-|---|---|---|---|---|
-| B1 | Successful registration | Register `testuser1` with a 12+ character password | Green success message, redirect to Login. Network: `POST /register` → **201** | |
-| B2 | Duplicate username | Register `TESTUSER1` again | "That username is already taken." → **409** | |
-| B3 | Successful login | Log in as `testuser1` | Redirect to Dashboard. Network: `POST /login` → **200** | |
-| B4 | Invalid password | Log in with the wrong password | "Invalid username or password." → **401** | |
-| B5 | Unknown user | Log in as `nobody123` | Same message as B4 → **401** | |
-| B6 | Successful logout | Click **Log out** | Redirect to Home. `POST /logout` → **200**. The session cookie is **gone** from the Cookies panel. | |
-| B7 | Back button after logout | Press Back after B6 | No dashboard shown, because the page isn't cached | |
-| B8 | Session fixation defense | Note the cookie value on /login, then log in | Cookie value **changes** | |
-| B9 | Stolen cookie after logout | Copy the cookie value, log out, then `curl -b "secureaccess_session=<value>" -i http://127.0.0.1:5000/dashboard` | **401** | |
-| B10 | Rate limiting | Submit a wrong password 6 times within a minute | 6th attempt: "Too many attempts…" → **429** | |
+| ID  | Test                       | Expected Result                   | Status           |
+| --- | -------------------------- | --------------------------------- | ---------------- |
+| B1  | Successful registration    | New User account created          | PASS             |
+| B2  | Duplicate username         | HTTP 409                          | PENDING          |
+| B3  | Successful login           | Dashboard accessible              | PASS             |
+| B4  | Invalid password           | Generic authentication error      | REPORTED PASS    |
+| B5  | Unknown username           | Generic authentication error      | PASS (Automated) |
+| B6  | Successful logout          | Session invalidated               | REPORTED PASS    |
+| B7  | Back button after logout   | Protected dashboard not displayed | PENDING          |
+| B8  | Session fixation defense   | Session ID changes after login    | PASS (Automated) |
+| B9  | Stolen cookie after logout | Old session rejected              | PASS (Automated) |
+| B10 | Login rate limiting        | HTTP 429 after excessive attempts | PASS (Automated) |
+
+### Registration Test
+
+A standard user account was registered successfully.
+
+```text
+Username: testuser
+Role: User
+Result: PASS
+```
+
+### Login Test
+
+The registered user logged in successfully.
+
+```text
+Username: testuser
+Role: User
+Dashboard: Accessible
+Result: PASS
+```
+
+### Invalid Password Test
+
+An incorrect password was submitted.
+
+The application rejected the login attempt.
+
+```text
+Result: REPORTED PASS
+```
+
+The exact HTTP response should be confirmed in Chrome DevTools during the final demonstration.
+
+---
 
 ## C. Authorization (RBAC)
 
-| # | Test | Steps | Expected | Result |
-|---|---|---|---|---|
-| C1 | Logged-out user → dashboard | Log out, visit `/dashboard` | **401** page with a Log in button | |
-| C2 | Logged-out user → admin | Visit `/admin` and `/api/admin/users` | **401** | |
-| C3 | User → User dashboard | Log in as `testuser1`, open `/dashboard` | **200**: username, role `User` | |
-| C4 | User → Admin dashboard | As `testuser1`, type `/admin` into the address bar | **403** page. No "Admin" link appears in the nav. | |
-| C5 | User → Admin API | As `testuser1`, visit `/api/admin/users` | **403** JSON | |
-| C6 | Admin → both dashboards | Log in as the admin, open `/dashboard` and `/admin` | Both **200**. The user list shows no password hashes. | |
-| C7 | Role injection | Run in the Console on /register: `fetch('/register',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name=csrf-token]').content},body:JSON.stringify({username:'hacker1',password:'hacker-password-1',role:'Admin'})}).then(r=>r.json()).then(console.log)` | Account created, but the admin dashboard shows `hacker1` as **User** | |
-| C8 | No public admin route | Look for any admin sign-up option in the UI | None exists | |
+| ID  | Test                               | Expected Result           | Status             |
+| --- | ---------------------------------- | ------------------------- | ------------------ |
+| C1  | Logged-out visitor → `/dashboard`  | HTTP 401                  | PENDING            |
+| C2  | Logged-out visitor → `/admin`      | HTTP 401                  | PASS               |
+| C3  | User → `/dashboard`                | HTTP 200                  | PASS               |
+| C4  | User → `/admin`                    | HTTP 403                  | PASS               |
+| C5  | User → `/api/admin/users`          | HTTP 403                  | PASS (Automated)   |
+| C6  | Admin → `/dashboard`               | HTTP 200                  | PASS               |
+| C7  | Admin → `/admin`                   | HTTP 200                  | PASS               |
+| C8  | Role injection during registration | Account remains User      | PASS (Automated)   |
+| C9  | No public Admin registration       | Admin creation restricted | PASS (Code Review) |
+| C10 | Admin API excludes password hashes | Sensitive data omitted    | PASS (Automated)   |
 
-## D. Input validation
+### Standard User Authorization
 
-| # | Test | Steps | Expected | Result |
-|---|---|---|---|---|
-| D1 | Empty username | Submit register or login with an empty username | "Username is required." (the frontend stops it; the backend also returns 400) | |
-| D2 | Empty password | Submit with an empty password | "Password is required." | |
-| D3 | Short password | Register with `short` | "Password must be at least 12 characters." | |
-| D4 | Special characters in username | Register `<script>alert(1)</script>` | Rejected with a message. No alert pops up. | |
-| D5 | Special characters in password | Register with `p@ss w0rd!<>'";--ü` | Registration and login both work | |
-| D6 | SQL injection on login | Username `' OR '1'='1' --`, password `anything` | "Invalid username or password." **No login, no crash.** | |
-| D7 | SQL injection on register | Username `x'; DROP TABLE users; --` | Rejected by validation. Users are still listed on /admin. | |
-| D8 | Missing CSRF token | `curl -i -X POST -H "Content-Type: application/json" -d "{}" http://127.0.0.1:5000/login` | **400**, "Security token missing or invalid…" | |
+Logged in as:
 
-## E. Browser checks
+```text
+Username: testuser
+Role: User
+```
 
-| # | Test | Steps | Expected | Result |
-|---|---|---|---|---|
-| E1 | Status codes | Watch the Network tab throughout | Codes match the tables above | |
-| E2 | No JavaScript errors | Watch the Console during all tests | No red **JS exceptions** (see the note below) | |
-| E3 | Cookie flags | Application → Cookies | `secureaccess_session`: **HttpOnly ✓**, **SameSite Lax**, Secure ✗ (expected on http://) | |
-| E4 | `document.cookie` | Type `document.cookie` in the Console while logged in | The session cookie is **not** shown, because of HttpOnly | |
-| E5 | Security headers | Network → click any page → Response Headers | `Content-Security-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` | |
-| E6 | Generic errors | Visit `/does-not-exist` | Friendly 404 page with no stack trace | |
+Requested:
 
-> **Note for E2:** Chrome prints lines like *"Failed to load resource: the server
-> responded with a status of 401"* whenever a request gets a 4xx response,
-> including the 401, 403 and 429 responses you're *deliberately* triggering.
-> Those are network log entries, not JavaScript errors. A real JS error looks
-> like `Uncaught TypeError: …` with a file and line number.
+```text
+GET /admin
+```
 
-## F. Audit finding F1 (before and after the fix)
+Chrome DevTools confirmed:
 
-| # | Test | Steps | Expected before fix | Expected after fix | Result |
-|---|---|---|---|---|---|
-| F1a | Session flood | Log in in the browser, then run `python scripts/demo_session_flood.py --username <user>` | `VULNERABLE`. Browser refresh → 401 | `Session survived.` Still logged in. | |
-| F1b | Regression test | Copy `docs/fix_F1/test_session_flood.py` into `tests/`, run `pytest -v` | That test **fails** | All tests pass | |
+```text
+Status Code: 403 FORBIDDEN
+```
 
-## Sign-off
+**Result: PASS**
 
-| Tester | Date | Python version | Browser | Overall result |
-|---|---|---|---|---|
-| | | | | |
+### Unauthenticated Access
+
+After logging out, the Admin endpoint was requested.
+
+```text
+GET /admin
+Status Code: 401 UNAUTHORIZED
+```
+
+**Result: PASS**
+
+### Administrator Access
+
+Logged in as:
+
+```text
+Username: admin
+Role: Admin
+```
+
+The administrator accessed:
+
+```text
+GET /dashboard
+GET /admin
+```
+
+Both endpoints returned:
+
+```text
+Status Code: 200 OK
+```
+
+**Result: PASS**
+
+### Authorization Summary
+
+| Account State | Endpoint     | Expected | Result  |
+| ------------- | ------------ | -------- | ------- |
+| User          | `/dashboard` | 200      | PASS    |
+| User          | `/admin`     | 403      | PASS    |
+| Admin         | `/dashboard` | 200      | PASS    |
+| Admin         | `/admin`     | 200      | PASS    |
+| Logged out    | `/admin`     | 401      | PASS    |
+| Logged out    | `/dashboard` | 401      | PENDING |
+
+---
+
+## D. Input Validation
+
+| ID  | Test                                  | Expected Result         | Status           |
+| --- | ------------------------------------- | ----------------------- | ---------------- |
+| D1  | Empty username                        | Validation error        | REPORTED PASS    |
+| D2  | Empty password                        | Validation error        | REPORTED PASS    |
+| D3  | Short password                        | Rejected                | PASS (Automated) |
+| D4  | Invalid username characters           | Rejected                | PASS (Automated) |
+| D5  | Special characters in password        | Handled correctly       | PASS (Automated) |
+| D6  | SQL injection-like login input        | Authentication rejected | REPORTED PASS    |
+| D7  | SQL injection-like registration input | Rejected                | PASS (Automated) |
+| D8  | Missing CSRF token                    | HTTP 400                | PASS (Automated) |
+| D9  | Malformed JSON                        | HTTP 400                | PASS (Automated) |
+| D10 | Oversized request                     | Rejected                | PASS (Automated) |
+
+### Empty Input Test
+
+Empty username and password submissions were tested.
+
+The application rejected the invalid input.
+
+**Result: REPORTED PASS**
+
+### SQL Injection Test
+
+The following username was submitted:
+
+```text
+' OR '1'='1
+```
+
+The application did not authenticate the request or crash.
+
+**Result: REPORTED PASS**
+
+The application uses parameterized SQL queries to prevent user input from being interpreted as SQL commands.
+
+---
+
+## E. Browser and Security Checks
+
+| ID  | Test                      | Expected Result               | Status                       |
+| --- | ------------------------- | ----------------------------- | ---------------------------- |
+| E1  | Authorized Admin request  | HTTP 200                      | PASS                         |
+| E2  | Unauthorized User request | HTTP 403                      | PASS                         |
+| E3  | Unauthenticated request   | HTTP 401                      | PASS                         |
+| E4  | Invalid password response | HTTP 401                      | PENDING NETWORK CONFIRMATION |
+| E5  | No JavaScript exceptions  | No unhandled errors           | PENDING                      |
+| E6  | HttpOnly session cookie   | JavaScript cannot read cookie | PASS (Automated)             |
+| E7  | SameSite cookie           | SameSite=Lax                  | PASS (Automated)             |
+| E8  | Secure cookie over HTTPS  | Secure enabled                | N/A — Local HTTP             |
+| E9  | Security response headers | Required headers present      | PASS (Automated)             |
+| E10 | Friendly 404 error        | No stack trace                | PASS (Automated)             |
+| E11 | Responsive layout         | Usable on mobile viewport     | REPORTED PASS                |
+
+### Browser Network Results
+
+Chrome DevTools confirmed:
+
+```text
+200 OK
+401 UNAUTHORIZED
+403 FORBIDDEN
+```
+
+**Result: PASS**
+
+### Browser Console
+
+Expected HTTP errors may appear in Chrome DevTools when testing authorization failures.
+
+For example:
+
+```text
+Failed to load resource: the server responded with a status of 403
+```
+
+These messages do not necessarily indicate JavaScript exceptions.
+
+The final console review remains pending.
+
+---
+
+## F. Security Audit Finding F1
+
+### F1 — Session Flood Denial-of-Service
+
+**Severity:** High  
+**Original Status:** Vulnerable  
+**Current Status:** Fixed and regression-tested
+
+### Original Vulnerability
+
+The original application used Flask-Session with a file-based cache.
+
+The cache had a threshold of 1,000 entries.
+
+Anonymous requests could create additional sessions and cause legitimate sessions to be evicted.
+
+The original security audit documented:
+
+```text
+Victim /dashboard before flood: 200
+Sending 1100 anonymous requests...
+Victim /dashboard after flood: 401
+VULNERABLE: victim was logged out.
+```
+
+### Security Fix
+
+The application was updated to use SQLite-backed sessions.
+
+Changes implemented:
+
+1. Installed Flask-SQLAlchemy 3.1.1.
+2. Changed `SESSION_TYPE` to `sqlalchemy`.
+3. Configured a dedicated SQLite session database.
+4. Removed the file-cache threshold of 1,000.
+5. Enabled periodic expired-session cleanup.
+6. Added an automated regression test.
+
+### Session Configuration
+
+```python
+SESSION_TYPE = "sqlalchemy"
+SESSION_CLEANUP_N_REQUESTS = 100
+```
+
+Session database:
+
+```text
+instance/sessions.db
+```
+
+### Regression Test
+
+Test file:
+
+```text
+tests/test_session_regression.py
+```
+
+The test:
+
+1. Creates an original session.
+2. Stores a session marker.
+3. Creates 1,100 additional sessions.
+4. Reopens the original session.
+5. Confirms that the original session marker remains.
+
+**Result: PASS**
+
+### F1 Test Summary
+
+| ID  | Test                         | Result                        | Status                     |
+| --- | ---------------------------- | ----------------------------- | -------------------------- |
+| F1a | Original file-cache flood    | Original session evicted      | VERIFIED IN ORIGINAL AUDIT |
+| F1b | SQLite session configuration | SQLAlchemy active             | PASS                       |
+| F1c | Session database creation    | `sessions.db` exists          | PASS                       |
+| F1d | Session regression test      | Original session preserved    | PASS                       |
+| F1e | Complete pytest suite        | 37 passed                     | PASS                       |
+| F1f | Live flood after fix         | Session remains authenticated | PENDING                    |
+
+### Remaining Risk
+
+The correction prevents the original size-based session eviction.
+
+However, large numbers of requests could still consume database storage.
+
+Recommended production protections include:
+
+- Global rate limiting
+- Reverse-proxy request limits
+- Database monitoring
+- Expired-session cleanup
+- Infrastructure resource limits
+
+---
+
+## G. Final QA Summary
+
+| Category                         | Result                            |
+| -------------------------------- | --------------------------------- |
+| Authentication                   | PASS — some manual checks pending |
+| Authorization                    | PASS                              |
+| Input validation                 | PASS                              |
+| SQL injection resistance         | PASS — tested scenarios           |
+| CSRF protection                  | PASS (Automated)                  |
+| Session security                 | PASS (Automated)                  |
+| F1 regression test               | PASS                              |
+| Browser HTTP status verification | PASS                              |
+| Browser Console                  | PENDING                           |
+| HTTPS deployment                 | NOT TESTED                        |
+| Automated test suite             | 37 PASSED                         |
+
+### Overall Result
+
+**PASS WITH REMAINING MANUAL VERIFICATION ITEMS**
+
+SecureAccess successfully demonstrates:
+
+- Secure registration and login
+- Argon2id password hashing
+- Server-side session management
+- Role-based access control
+- Input validation
+- CSRF protection
+- SQL injection resistance
+- Authentication rate limiting
+- Security regression testing
+
+The original F1 session vulnerability was corrected using SQLite-backed sessions.
+
+All 37 automated tests passed.
+
+The application is suitable for educational demonstration but requires additional hardening before production deployment.
+
+---
+
+## Sign-Off
+
+| Field                  | Value                           |
+| ---------------------- | ------------------------------- |
+| Project                | SecureAccess                    |
+| Testing date           | October 27, 2026                |
+| Testing environment    | Local Flask development server  |
+| Browser                | Google Chrome                   |
+| Automated tests passed | 37                              |
+| Automated tests failed | 0                               |
+| F1 remediation         | Completed                       |
+| Overall QA status      | PASS WITH PENDING MANUAL CHECKS |

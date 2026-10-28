@@ -31,7 +31,8 @@ class Config:
     )
 
     # --- Flask-Session (server-side storage) ---------------------------------
-    SESSION_TYPE = "cachelib"           # SESSION_CACHELIB is built in create_app()
+    SESSION_TYPE = "sqlalchemy"          # SESSION_CACHELIB is built in create_app()
+    SESSION_CLEANUP_N_REQUESTS = 100
     SESSION_PERMANENT = True
 
     # --- CSRF (Flask-WTF) -----------------------------------------------------
